@@ -11,14 +11,11 @@
 ├── README.md                            ← You are here
 ├── system-monitoring.md                 ← Deep-dive reference guide
 ├── scripts/
-│   ├── health-check.sh                  ← Full system health snapshot
-│   ├── disk-alert.sh                    ← Disk usage threshold alerting
-│   ├── process-monitor.sh               ← Monitor & auto-restart processes
-│   └── log-analyzer.sh                  ← Parse and summarize system logs
-└── examples/
-    ├── prometheus-node-exporter.service  ← Prometheus Node Exporter unit
-    ├── alertmanager-rules.yml            ← Sample Prometheus alert rules
-    └── logrotate-app.conf               ← Production logrotate config
+    ├── health-check.sh                  ← Full system health snapshot
+    ├── disk-alert.sh                    ← Disk usage threshold alerting
+    ├── process-monitor.sh               ← Monitor & auto-restart processes
+    └── log-analyzer.sh                  ← Parse and summarize system logs
+
 ```
 
 ---
