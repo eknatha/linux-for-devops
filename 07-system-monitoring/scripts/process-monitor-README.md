@@ -3,6 +3,9 @@
 A lightweight Bash script that watches critical Linux processes and automatically restarts them when they go down — with smart cooldown logic, Slack/email alerting, and recovery detection.
 
 ---
+![Bash](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat&logo=gnu-bash&logoColor=white)
+**eknatha**
+
 
 ## What It Does
 
