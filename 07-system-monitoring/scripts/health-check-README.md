@@ -3,6 +3,9 @@
 A single-command system health snapshot for production Linux servers. Checks CPU, memory, disk, network, services, logs, file descriptors, and security — then summarises all findings with colour-coded ✔ / ⚠ / ✘ indicators.
 
 ---
+![Bash](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat&logo=gnu-bash&logoColor=white)
+**eknatha**
+
 
 ## What It Does
 
