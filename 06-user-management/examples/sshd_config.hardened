@@ -1,0 +1,342 @@
+# =============================================================================
+# sshd_config.hardened
+# Production-hardened SSH daemon configuration
+# Based on: CIS Benchmark for Linux, Mozilla OpenSSH Guidelines, NIST SP 800-53
+#
+# INSTALLATION:
+#   # 1. Backup current config
+#   sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak-$(date +%F)
+#
+#   # 2. Copy this file
+#   sudo cp sshd_config.hardened /etc/ssh/sshd_config
+#
+#   # 3. Validate syntax (CRITICAL — do this before restarting)
+#   sudo sshd -t
+#
+#   # 4. Reload daemon (keep existing sessions alive)
+#   sudo systemctl reload sshd
+#   # OR for full restart:
+#   sudo systemctl restart sshd
+#
+# BEFORE APPLYING:
+#   ✔ Ensure your SSH public key is in ~/.ssh/authorized_keys
+#   ✔ Test in a second terminal before closing current session
+#   ✔ Have console/out-of-band access as a fallback (AWS SSM, GCP IAP, iDRAC)
+#
+# Author : Eknatha
+# Repo   : linux-for-devops/06-user-management
+# =============================================================================
+
+
+# ---------------------------------------------------------------------------
+# NETWORK & PORT
+# ---------------------------------------------------------------------------
+
+# Listening address — bind to specific interface in multi-homed servers
+# ListenAddress 0.0.0.0      # All interfaces (default)
+# ListenAddress 10.0.1.5     # Specific private IP (recommended for bastion hosts)
+ListenAddress 0.0.0.0
+
+# Change default port to reduce automated scan noise
+# IMPORTANT: Update firewall rules and client ~/.ssh/config before changing
+# Port 2222
+Port 22
+
+# Use IPv4 and IPv6 (set to inet for IPv4 only)
+AddressFamily any
+
+
+# ---------------------------------------------------------------------------
+# PROTOCOL & CIPHERS
+# ---------------------------------------------------------------------------
+
+# SSH Protocol — only SSHv2 (SSHv1 is insecure, deprecated)
+# Note: Protocol directive removed in OpenSSH 7.4+ (SSHv2 is the only option)
+# Protocol 2
+
+# Strong ciphers — ChaCha20 preferred, AES-GCM as fallback
+# Excludes: 3DES, Blowfish, RC4, CBC-mode ciphers
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+
+# Message Authentication Codes — ETM (Encrypt-then-MAC) only
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+
+# Key Exchange — Curve25519 preferred, DH groups 14+ as fallback
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256
+
+# Host Key types (controls which host keys the server presents)
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+# Host Key Algorithms (restrict to strong types)
+HostKeyAlgorithms ssh-ed25519,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256
+
+
+# ---------------------------------------------------------------------------
+# AUTHENTICATION
+# ---------------------------------------------------------------------------
+
+# ── Root Login ──────────────────────────────────────────────────────────────
+# NEVER allow root to login directly. Use a personal account + sudo.
+PermitRootLogin no
+
+# ── Password Authentication ─────────────────────────────────────────────────
+# DISABLE password auth — use SSH keys only
+PasswordAuthentication no
+
+# Disable keyboard-interactive (PAM keyboard prompts, 2FA prompts via challenge)
+# Set to yes ONLY if you use TOTP/Duo via PAM
+ChallengeResponseAuthentication no
+
+# Disable empty passwords (safety net)
+PermitEmptyPasswords no
+
+# ── Public Key Authentication ───────────────────────────────────────────────
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# ── Kerberos / GSSAPI ───────────────────────────────────────────────────────
+# Disable unless using Kerberos/AD integration
+KerberosAuthentication no
+GSSAPIAuthentication no
+GSSAPICleanupCredentials no
+
+# ── Other Authentication Methods ────────────────────────────────────────────
+# Disable host-based and rhosts authentication (insecure)
+HostbasedAuthentication no
+IgnoreRhosts yes
+IgnoreUserKnownHosts yes
+
+# ── PAM ─────────────────────────────────────────────────────────────────────
+# Keep UsePAM yes — needed for account/session management, logging, 2FA
+UsePAM yes
+
+# ── Authentication Limits ───────────────────────────────────────────────────
+# Max authentication attempts per connection (lock out brute force)
+MaxAuthTries 3
+
+# Max concurrent unauthenticated connections
+# Format: start:rate:max — start rejecting at 10, 30% rejection rate, max 60
+MaxStartups 10:30:60
+
+# Login grace period — disconnect if not authenticated within N seconds
+LoginGraceTime 30
+
+# ── Two-Factor Authentication (Optional — Requires google-authenticator-libpam)
+# Uncomment to require TOTP + SSH key (both)
+# AuthenticationMethods publickey,keyboard-interactive
+# UsePAM yes
+# ChallengeResponseAuthentication yes
+
+
+# ---------------------------------------------------------------------------
+# ACCESS CONTROL
+# ---------------------------------------------------------------------------
+
+# ── Allow only specific groups ───────────────────────────────────────────────
+# Create a dedicated group: sudo groupadd ssh-users
+# Add users: sudo usermod -aG ssh-users username
+AllowGroups ssh-users ops-engineers sre-team ci-deploy
+
+# Alternatively, deny specific groups:
+# DenyGroups nologin-group temporary-users
+
+# ── Allow/Deny specific users (evaluated AFTER group rules) ─────────────────
+# AllowUsers john.doe jane.smith ci-deploy
+# DenyUsers nobody root
+
+# ── Restrict by IP (Use firewall/iptables for this instead — more reliable)
+# Match Address 10.0.0.0/8
+#   PasswordAuthentication yes   # Allow password auth from internal only
+
+
+# ---------------------------------------------------------------------------
+# SESSION & KEEPALIVE
+# ---------------------------------------------------------------------------
+
+# Send keepalive packets to detect dead connections
+# Disconnect after: ClientAliveInterval * ClientAliveCountMax seconds = 300s
+ClientAliveInterval 60
+ClientAliveCountMax 5
+
+# TCP keepalive at the TCP level (backup to ClientAlive)
+TCPKeepAlive yes
+
+# Idle session timeout via environment (works with some terminals)
+# Set TMOUT in /etc/profile.d/timeout.sh instead for shell-level enforcement
+
+
+# ---------------------------------------------------------------------------
+# FORWARDING & TUNNELING
+# ---------------------------------------------------------------------------
+
+# Disable X11 forwarding (GUI apps over SSH — attack vector)
+X11Forwarding no
+X11UseLocalhost yes
+
+# Disable TCP port forwarding (tunneling can bypass firewall rules)
+# Set to yes ONLY if your ops team needs SSH tunnels
+AllowTcpForwarding no
+
+# Disable SSH agent forwarding (prevents credential theft via compromised hosts)
+# Set to yes only for bastion/jump hosts where agent forwarding is required
+AllowAgentForwarding no
+
+# Disable StreamLocal (Unix socket) forwarding
+AllowStreamLocalForwarding no
+
+# Disable gateway ports (forwarded ports accessible on non-loopback interfaces)
+GatewayPorts no
+
+# Disable tun device tunneling (VPN over SSH)
+PermitTunnel no
+
+
+# ---------------------------------------------------------------------------
+# FILE & ENVIRONMENT
+# ---------------------------------------------------------------------------
+
+# Prevent users from setting environment variables via authorized_keys
+PermitUserEnvironment no
+
+# Use a chroot jail for SFTP users (optional — uncomment if using SFTP)
+# Subsystem sftp internal-sftp
+# Match Group sftp-users
+#   ChrootDirectory /sftp/%u
+#   ForceCommand internal-sftp
+#   AllowTcpForwarding no
+#   X11Forwarding no
+
+# Standard SFTP subsystem
+Subsystem sftp /usr/lib/openssh/sftp-server
+
+# Disable .rhosts and /etc/hosts.equiv lookups
+IgnoreRhosts yes
+
+
+# ---------------------------------------------------------------------------
+# BANNER & MOTD
+# ---------------------------------------------------------------------------
+
+# Legal warning banner displayed BEFORE login (required by many compliance frameworks)
+# Create the file: sudo nano /etc/ssh/banner
+# Example content:
+#   ┌─────────────────────────────────────────────────────────┐
+#   │  AUTHORIZED ACCESS ONLY                                 │
+#   │  This system is monitored. Unauthorized access is       │
+#   │  a criminal offence under applicable law.               │
+#   └─────────────────────────────────────────────────────────┘
+Banner /etc/ssh/banner
+
+# Disable MOTD (Message of the Day) display via SSH — manage via /etc/motd instead
+PrintMotd no
+PrintLastLog yes
+
+
+# ---------------------------------------------------------------------------
+# LOGGING
+# ---------------------------------------------------------------------------
+
+# Log facility — AUTH sends to /var/log/auth.log (Debian) or /var/log/secure (RHEL)
+SyslogFacility AUTH
+
+# VERBOSE: logs accepted keys (fingerprints), failed attempts, disconnects
+# INFO is minimum; VERBOSE is recommended for security environments
+LogLevel VERBOSE
+
+
+# ---------------------------------------------------------------------------
+# PERFORMANCE
+# ---------------------------------------------------------------------------
+
+# Compress data — use delayed (default) to compress after authentication
+Compression delayed
+
+# Use privilege separation (default yes — do not change)
+UsePrivilegeSeparation sandbox
+
+# Disable DNS lookups on connect (speeds up login; use IP-based AllowUsers if needed)
+UseDNS no
+
+
+# ---------------------------------------------------------------------------
+# HARDENING: Additional Options
+# ---------------------------------------------------------------------------
+
+# Prevent users from bypassing restrictions via ~/.ssh/rc
+PermitUserRC no
+
+# Strict mode — check permissions on .ssh files before allowing login
+StrictModes yes
+
+# Revocation list (optional — useful for enterprise CA-signed keys)
+# RevokedKeys /etc/ssh/revoked_keys
+
+# Restrict sftp/scp to specific users (if SFTP needed but not SSH shell)
+# Match User sftp-user
+#   ForceCommand internal-sftp
+#   ChrootDirectory /data/sftp/%u
+#   AllowTcpForwarding no
+
+# Maximum sessions per network connection
+MaxSessions 5
+
+
+# ---------------------------------------------------------------------------
+# MATCH BLOCKS — Override settings for specific users/groups/IPs
+# (Match blocks must come LAST in the config file)
+# ---------------------------------------------------------------------------
+
+# Example: Allow password auth from internal monitoring network only
+# Match Address 10.100.0.0/24
+#     PasswordAuthentication yes
+#     AllowGroups monitoring
+
+# Example: Bastion host — allow agent forwarding for ops team only
+# Match Group ops-engineers
+#     AllowAgentForwarding yes
+#     AllowTcpForwarding yes
+
+# Example: Force internal sftp user to chroot
+# Match User sftp-internal
+#     ChrootDirectory /sftp
+#     ForceCommand internal-sftp -l VERBOSE
+#     AllowTcpForwarding no
+#     X11Forwarding no
+
+
+# ---------------------------------------------------------------------------
+# POST-INSTALLATION VERIFICATION
+# ---------------------------------------------------------------------------
+#
+# 1. Validate config:        sudo sshd -t
+# 2. Check listening port:   sudo ss -tulnp | grep sshd
+# 3. Test key login:         ssh -i ~/.ssh/id_ed25519 -v user@server
+# 4. Check effective config: sudo sshd -T | grep -E 'permitroot|passwordauth|allowgroups'
+# 5. Audit cipher config:    ssh-audit server.example.com   (install: pip install ssh-audit)
+# 6. Test from new terminal  BEFORE closing current session
+#
+# FIREWALL (ufw example):
+#   sudo ufw allow from 10.0.0.0/8 to any port 22 proto tcp
+#   sudo ufw deny 22
+#
+# FIREWALL (iptables example):
+#   iptables -A INPUT -p tcp --dport 22 -s 10.0.0.0/8 -j ACCEPT
+#   iptables -A INPUT -p tcp --dport 22 -j DROP
+#
+# FAIL2BAN (brute force protection):
+#   sudo apt install fail2ban
+#   # /etc/fail2ban/jail.d/sshd.conf:
+#   # [sshd]
+#   # enabled  = true
+#   # port     = ssh
+#   # maxretry = 3
+#   # bantime  = 3600
+#   # findtime = 600
+# ---------------------------------------------------------------------------
+
+# =============================================================================
+# IMMUTABLE SIGNATURE — DO NOT EDIT OR REMOVE
+# Author : Eknatha
+# Repo   : linux-for-devops/06-user-management
+# =============================================================================
