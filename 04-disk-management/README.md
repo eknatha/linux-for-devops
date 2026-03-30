@@ -13,11 +13,10 @@
 ├── scripts/
 │   ├── disk-health-check.sh           ← SMART, filesystem, and usage audit
 │   ├── lvm-snapshot-backup.sh         ← LVM snapshot-based backup
-│   ├── disk-benchmark.sh              ← I/O throughput and latency benchmark
+│   ├── lvm-setup.sh                   ← LVM volume group creation walkthrough
 │   └── storage-cleanup.sh             ← Find and clean large/old files safely
 └── examples/
     ├── fstab-production.conf          ← /etc/fstab for production mounts
-    ├── lvm-setup.sh                   ← LVM volume group creation walkthrough
     └── mdadm-raid.conf                ← Software RAID-1 configuration
 ```
 
